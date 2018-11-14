@@ -66,7 +66,7 @@
     "ttf2woff2": "^2.0.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.1.5",
+    "@babel/core": "^7.1.6",
     "@babel/cli": "^7.1.5",
     "@babel/preset-env": "^7.1.5",
     "@babel/register": "^7.0.0",
