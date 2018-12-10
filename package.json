@@ -59,7 +59,7 @@
     "lodash.merge": "^4.6.1",
     "nunjucks": "^3.0.0",
     "resolve-from": "^4.0.0",
-    "svg2ttf": "^4.0.0",
+    "svg2ttf": "^4.2.0",
     "svgicons2svgfont": "^9.0.3",
     "ttf2eot": "^2.0.0",
     "ttf2woff": "^2.0.0",
