@@ -57,7 +57,7 @@
     "meow": "^5.0.0",
     "fs-extra": "^7.0.1",
     "lodash.merge": "^4.6.1",
-    "nunjucks": "^3.0.0",
+    "nunjucks": "^3.1.6",
     "resolve-from": "^4.0.0",
     "svg2ttf": "^4.0.0",
     "svgicons2svgfont": "^9.0.3",
