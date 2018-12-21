@@ -28,60 +28,79 @@ function getGlyphsData(files, options) {
   const throttle = createThrottle(options.maxConcurrency);
 
   return Promise.all(
-    files.map(srcPath =>
+    files.map((file, idx) =>
       throttle(
         () =>
           new Promise((resolve, reject) => {
-            const glyph = fs.createReadStream(srcPath);
-            let glyphContents = "";
+            // const glyph = fs.createReadStream(file);
+            const glyphContents = file;
 
-            return glyph
-              .on("error", glyphError => reject(glyphError))
-              .on("data", data => {
-                glyphContents += data.toString();
-              })
-              .on("end", () => {
-                // Maybe bug in xml2js
-                if (glyphContents.length === 0) {
-                  return reject(new Error(`Empty file ${srcPath}`));
-                }
+            if (file.length === 0) {
+              return reject(new Error(`Empty file ${file}`));
+            }
 
-                return xmlParser.parseString(glyphContents, error => {
-                  if (error) {
-                    return reject(error);
-                  }
+            return xmlParser.parseString(glyphContents, error => {
+              if (error) {
+                return reject(error);
+              }
 
-                  const glyphData = {
-                    contents: glyphContents,
-                    srcPath
-                  };
+              const glyphData = {
+                contents: file,
+                name: idx.toString()
+              };
 
-                  return resolve(glyphData);
-                });
-              });
+              return resolve(glyphData);
+            });
+
+            // return glyph
+            //   .on("error", glyphError => reject(glyphError))
+            //   .on("data", data => {
+            //     glyphContents += data.toString();
+            //   })
+            //   .on("end", () => {
+            //     // Maybe bug in xml2js
+            //     if (glyphContents.length === 0) {
+            //       return reject(new Error(`Empty file ${file}`));
+            //     }
+            //
+            //     return xmlParser.parseString(glyphContents, error => {
+            //       if (error) {
+            //         return reject(error);
+            //       }
+            //
+            //       const glyphData = {
+            //         contents: glyphContents,
+            //         srcPath: file
+            //       };
+            //
+            //       return resolve(glyphData);
+            //     });
+            //   });
           })
       )
     )
   ).then(glyphsData => {
-    const sortedGlyphsData = options.sort
-      ? glyphsData.sort((fileA, fileB) =>
-          fileSorter(fileA.srcPath, fileB.srcPath)
-        )
-      : glyphsData;
+    const sortedGlyphsData = glyphsData;
+
+    function metadataProvider2 (glyph) {
+      return {name: glyph.name, unicode: [String.fromCodePoint(options.startUnicode++)]}
+    }
 
     return Promise.all(
       sortedGlyphsData.map(
         glyphData =>
           new Promise((resolve, reject) => {
-            metadataProvider(glyphData.srcPath, (error, metadata) => {
-              if (error) {
-                return reject(error);
-              }
-
-              glyphData.metadata = metadata;
-
-              return resolve(glyphData);
-            });
+            // metadataProvider(glyphData.srcPath, (error, metadata) => {
+            //   if (error) {
+            //     return reject(error);
+            //   }
+            //
+            //   glyphData.metadata = metadata;
+            //
+            //   return resolve(glyphData);
+            // });
+            glyphData.metadata = metadataProvider2(glyphData)
+            resolve(glyphData)
           })
       )
     );
@@ -207,29 +226,13 @@ export default function(initialOptions) {
     }
 
     return (
-      globby([].concat(options.files))
-        .then(foundFiles => {
-          const filteredFiles = foundFiles.filter(
-            foundFile => path.extname(foundFile) === ".svg"
-          );
-
-          if (filteredFiles.length === 0) {
-            throw new Error(
-              "Files glob patterns specified did not match any files"
-            );
-          }
-
-          return filteredFiles;
-        })
-        .then(files =>
           Promise.resolve()
-            .then(() => getGlyphsData(files, options))
+            .then(() => getGlyphsData(options.files, options))
             .then(generatedDataInternal => {
               glyphsData = generatedDataInternal;
 
               return svgIcons2svgFont(generatedDataInternal, options);
             })
-        )
         // Maybe add ttfautohint
         .then(svgFont => {
           const result = {};
