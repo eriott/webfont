@@ -135,13 +135,13 @@ function getGlyphsData(items, options) {
       })).then(plainsGlyphs => filesGlyphs.concat(plainsGlyphs));
     });
   }).then(glyphsData => {
-    const defaultFileSorter = (lhs, rhs) => {
+    const byNameSorter = (lhs, rhs) => {
       const lhsName = lhs.metadata.name;
       const rhsName = rhs.metadata.name;
       return lhsName.localeCompare(rhsName);
     };
 
-    return options.sort ? glyphsData.sort(defaultFileSorter) : glyphsData;
+    return options.sort ? glyphsData.sort(byNameSorter) : glyphsData.sort((lhs, rhs) => lhs - rhs);
   });
 }
 
