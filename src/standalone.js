@@ -129,7 +129,7 @@ function getGlyphsData(items, options) {
       })).then(plainsGlyphs => filesGlyphs.concat(plainsGlyphs));
     });
   }).then(glyphsData => {
-    const defaultFileSorter = (lhs, rhs) => {
+    const byNameSorter = (lhs, rhs) => {
       const lhsName = lhs.metadata.name;
       const rhsName = rhs.metadata.name;
 
@@ -137,8 +137,8 @@ function getGlyphsData(items, options) {
     };
 
     return options.sort
-      ? glyphsData.sort(defaultFileSorter)
-      : glyphsData;
+      ? glyphsData.sort(byNameSorter)
+      : glyphsData.sort((lhs, rhs) => lhs - rhs);
   });
 }
 
