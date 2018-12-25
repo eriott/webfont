@@ -138,7 +138,7 @@ function getGlyphsData(items, options) {
 
     return options.sort
       ? glyphsData.sort(byNameSorter)
-      : glyphsData.sort((lhs, rhs) => lhs - rhs);
+      : glyphsData.sort((lhs, rhs) => lhs.index - rhs.index);
   });
 }
 
