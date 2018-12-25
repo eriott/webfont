@@ -17,6 +17,8 @@ var _metadata = _interopRequireDefault(require("svgicons2svgfont/src/metadata"))
 
 var _fs = _interopRequireDefault(require("fs"));
 
+var _globby = _interopRequireDefault(require("globby"));
+
 var _lodash = _interopRequireDefault(require("lodash.merge"));
 
 var _nunjucks = _interopRequireDefault(require("nunjucks"));
@@ -38,21 +40,13 @@ var _xml2js = _interopRequireDefault(require("xml2js"));
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function getGlyphsData(items, options) {
-  const metadataProvider = options.metadataProvider || (glyphData => {
-    if (glyphData.srcPath) {
-      return (0, _metadata.default)({
-        prependUnicode: options.prependUnicode,
-        startUnicode: options.startUnicode
-      });
-    }
+  const svgicons2svgfontMetadataProvider = (0, _metadata.default)({
+    prependUnicode: options.prependUnicode,
+    startUnicode: options.startUnicode
+  });
 
-    return (glyph, cb) => {
-      const metadata = {
-        name: glyph.name || glyph.index.toString(),
-        unicode: [String.fromCodePoint(options.startUnicode++)]
-      };
-      cb(null, metadata);
-    };
+  const filesMetadataProvider = options.metadataProvider || ((glyphData, cb) => {
+    svgicons2svgfontMetadataProvider(glyphData.srcPath, cb);
   });
 
   const xmlParser = new _xml2js.default.Parser();
@@ -96,7 +90,8 @@ function getGlyphsData(items, options) {
     return resolve({
       contents: glyphContents,
       index: idx,
-      name: item.name
+      name: item.name,
+      unicode: item.unicode
     });
   }).then(glyphData => new Promise((resolve, reject) => xmlParser.parseString(glyphData.contents, error => {
     if (error) {
@@ -105,18 +100,48 @@ function getGlyphsData(items, options) {
 
     return resolve(glyphData);
   })))))).then(glyphsData => {
-    const sortedGlyphsData = glyphsData;
-    return Promise.all(sortedGlyphsData.map(glyphData => new Promise((resolve, reject) => {
-      metadataProvider(glyphData)(glyphData, (error, metadata) => {
-        if (error) {
-          return reject(error);
+    const fileGlyphs = glyphsData.filter(glyph => Boolean(glyph.srcPath));
+    const plainGlyphs = glyphsData.filter(glyph => !glyph.srcPath);
+    return Promise.all(fileGlyphs.map(glyphData => new Promise((resolve, reject) => filesMetadataProvider(glyphData, (error, metadata) => {
+      if (error) {
+        return reject(error);
+      }
+
+      glyphData.metadata = metadata;
+      return resolve(glyphData);
+    })))).then(filesGlyphs => {
+      const usedUnicodes = filesGlyphs.reduce((prev, curr) => prev.concat(curr.metadata.unicode), []);
+      return Promise.all(plainGlyphs.map(glyphData => {
+        const metadata = {
+          name: glyphData.name || glyphData.index.toString(),
+          unicode: []
+        };
+
+        if (glyphData.unicode) {
+          if (usedUnicodes.indexOf(glyphData.unicode) !== -1) {
+            throw new Error(`The unicode codepoint '${glyphData.unicode}' of the glyph` + `${metadata.name}' seems to be already used by another glyph.`);
+          } else {
+            metadata.unicode[0] = glyphData.unicode;
+          }
+        } else {
+          do {
+            metadata.unicode[0] = String.fromCodePoint(options.startUnicode++);
+          } while (usedUnicodes.indexOf(metadata.unicode[0]) !== -1);
         }
 
+        usedUnicodes.push(metadata.unicode[0]);
         glyphData.metadata = metadata;
-        return resolve(glyphData);
-      });
-      resolve(glyphData);
-    })));
+        return Promise.resolve(glyphData);
+      })).then(plainsGlyphs => filesGlyphs.concat(plainsGlyphs));
+    });
+  }).then(glyphsData => {
+    const defaultFileSorter = (lhs, rhs) => {
+      const lhsName = lhs.metadata.name;
+      const rhsName = rhs.metadata.name;
+      return lhsName.localeCompare(rhsName);
+    };
+
+    return options.sort ? glyphsData.sort(defaultFileSorter) : glyphsData;
   });
 }
 
@@ -223,13 +248,23 @@ function _default(initialOptions) {
       options.filePath = loadedConfig.filepath;
     }
 
-    let items = options.files.map(file => ({
-      srcPath: file
-    }));
-    items = items.concat(options.svgs);
-    return Promise.resolve().then(() => getGlyphsData(items, options)).then(generatedDataInternal => {
-      glyphsData = generatedDataInternal;
-      return svgIcons2svgFont(generatedDataInternal, options);
+    return (0, _globby.default)([].concat(options.files)).then(foundFiles => {
+      const filteredFiles = foundFiles.filter(foundFile => _path.default.extname(foundFile) === ".svg");
+      return filteredFiles;
+    }).then(files => {
+      let items = files.map(file => ({
+        srcPath: file
+      }));
+      items = items.concat(options.svgs);
+
+      if (items.length === 0) {
+        throw new Error("There are no SVGs to generate from");
+      }
+
+      return Promise.resolve().then(() => getGlyphsData(items, options)).then(generatedDataInternal => {
+        glyphsData = generatedDataInternal;
+        return svgIcons2svgFont(generatedDataInternal, options);
+      });
     }) // Maybe add ttfautohint
     .then(svgFont => {
       const result = {};
