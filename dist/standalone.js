@@ -15,11 +15,7 @@ var _asyncThrottle = _interopRequireDefault(require("async-throttle"));
 
 var _metadata = _interopRequireDefault(require("svgicons2svgfont/src/metadata"));
 
-var _filesorter = _interopRequireDefault(require("svgicons2svgfont/src/filesorter"));
-
 var _fs = _interopRequireDefault(require("fs"));
-
-var _globby = _interopRequireDefault(require("globby"));
 
 var _lodash = _interopRequireDefault(require("lodash.merge"));
 
@@ -41,76 +37,84 @@ var _xml2js = _interopRequireDefault(require("xml2js"));
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-function getGlyphsData(files, options) {
-  const metadataProvider = options.metadataProvider || (0, _metadata.default)({
-    prependUnicode: options.prependUnicode,
-    startUnicode: options.startUnicode
-  });
-  const xmlParser = new _xml2js.default.Parser();
-  const throttle = (0, _asyncThrottle.default)(options.maxConcurrency);
-  return Promise.all(files.map((file, idx) => throttle(() => new Promise((resolve, reject) => {
-    // const glyph = fs.createReadStream(file);
-    const glyphContents = file;
-
-    if (file.length === 0) {
-      return reject(new Error(`Empty file ${file}`));
+function getGlyphsData(items, options) {
+  const metadataProvider = options.metadataProvider || (glyphData => {
+    if (glyphData.srcPath) {
+      return (0, _metadata.default)({
+        prependUnicode: options.prependUnicode,
+        startUnicode: options.startUnicode
+      });
     }
 
-    return xmlParser.parseString(glyphContents, error => {
-      if (error) {
-        return reject(error);
-      }
-
-      const glyphData = {
-        contents: file,
-        name: idx.toString()
-      };
-      return resolve(glyphData);
-    }); // return glyph
-    //   .on("error", glyphError => reject(glyphError))
-    //   .on("data", data => {
-    //     glyphContents += data.toString();
-    //   })
-    //   .on("end", () => {
-    //     // Maybe bug in xml2js
-    //     if (glyphContents.length === 0) {
-    //       return reject(new Error(`Empty file ${file}`));
-    //     }
-    //
-    //     return xmlParser.parseString(glyphContents, error => {
-    //       if (error) {
-    //         return reject(error);
-    //       }
-    //
-    //       const glyphData = {
-    //         contents: glyphContents,
-    //         srcPath: file
-    //       };
-    //
-    //       return resolve(glyphData);
-    //     });
-    //   });
-  })))).then(glyphsData => {
-    const sortedGlyphsData = glyphsData;
-
-    function metadataProvider2(glyph) {
-      return {
-        name: glyph.name,
+    return (glyph, cb) => {
+      const metadata = {
+        name: glyph.name || glyph.index.toString(),
         unicode: [String.fromCodePoint(options.startUnicode++)]
       };
+      cb(null, metadata);
+    };
+  });
+
+  const xmlParser = new _xml2js.default.Parser();
+  const throttle = (0, _asyncThrottle.default)(options.maxConcurrency);
+  return Promise.all(items.map((item, idx) => throttle(() => new Promise((resolve, reject) => {
+    if (item.srcPath) {
+      // load from file
+      const file = item.srcPath;
+
+      const glyph = _fs.default.createReadStream(file);
+
+      let glyphContents = "";
+
+      if (file.length === 0) {
+        return reject(new Error(`Empty file ${file}`));
+      }
+
+      return glyph.on("error", glyphError => reject(glyphError)).on("data", data => {
+        glyphContents += data.toString();
+      }).on("end", () => {
+        // Maybe bug in xml2js
+        if (glyphContents.length === 0) {
+          return reject(new Error(`Empty file ${file}`));
+        }
+
+        const glyphData = {
+          contents: glyphContents,
+          index: idx,
+          srcPath: file
+        };
+        return resolve(glyphData);
+      });
     }
 
+    const glyphContents = item.svg;
+
+    if (glyphContents.length === 0) {
+      return reject(new Error(`Empty svg at index ${idx}`));
+    }
+
+    return resolve({
+      contents: glyphContents,
+      index: idx,
+      name: item.name
+    });
+  }).then(glyphData => new Promise((resolve, reject) => xmlParser.parseString(glyphData.contents, error => {
+    if (error) {
+      return reject(error);
+    }
+
+    return resolve(glyphData);
+  })))))).then(glyphsData => {
+    const sortedGlyphsData = glyphsData;
     return Promise.all(sortedGlyphsData.map(glyphData => new Promise((resolve, reject) => {
-      // metadataProvider(glyphData.srcPath, (error, metadata) => {
-      //   if (error) {
-      //     return reject(error);
-      //   }
-      //
-      //   glyphData.metadata = metadata;
-      //
-      //   return resolve(glyphData);
-      // });
-      glyphData.metadata = metadataProvider2(glyphData);
+      metadataProvider(glyphData)(glyphData, (error, metadata) => {
+        if (error) {
+          return reject(error);
+        }
+
+        glyphData.metadata = metadata;
+        return resolve(glyphData);
+      });
       resolve(glyphData);
     })));
   });
@@ -169,8 +173,8 @@ function buildConfig(options) {
 }
 
 function _default(initialOptions) {
-  if (!initialOptions || !initialOptions.files) {
-    throw new Error("You must pass webfont a `files` glob");
+  if (!initialOptions || !initialOptions.files && !initialOptions.svgs) {
+    throw new Error("You must pass webfont a `files` glob or `svgs`");
   }
 
   let options = Object.assign({}, {
@@ -178,6 +182,7 @@ function _default(initialOptions) {
     // eslint-disable-line no-undefined
     centerHorizontally: false,
     descent: 0,
+    files: [],
     fixedWidth: false,
     fontHeight: null,
     fontId: null,
@@ -202,6 +207,7 @@ function _default(initialOptions) {
     round: 10e12,
     sort: true,
     startUnicode: 0xea01,
+    svgs: [],
     template: null,
     templateClassName: null,
     templateFontName: null,
@@ -217,7 +223,11 @@ function _default(initialOptions) {
       options.filePath = loadedConfig.filepath;
     }
 
-    return Promise.resolve().then(() => getGlyphsData(options.files, options)).then(generatedDataInternal => {
+    let items = options.files.map(file => ({
+      srcPath: file
+    }));
+    items = items.concat(options.svgs);
+    return Promise.resolve().then(() => getGlyphsData(items, options)).then(generatedDataInternal => {
       glyphsData = generatedDataInternal;
       return svgIcons2svgFont(generatedDataInternal, options);
     }) // Maybe add ttfautohint
