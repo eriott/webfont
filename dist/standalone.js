@@ -119,7 +119,7 @@ function getGlyphsData(items, options) {
 
         if (glyphData.unicode) {
           if (usedUnicodes.indexOf(glyphData.unicode) !== -1) {
-            throw new Error(`The unicode codepoint '${glyphData.unicode}' of the glyph` + `${metadata.name}' seems to be already used by another glyph.`);
+            throw new Error(`The unicode codepoint '${glyphData.unicode}' of the glyph` + ` '${metadata.name}' seems to be already used by another glyph.`);
           } else {
             metadata.unicode[0] = glyphData.unicode;
           }
