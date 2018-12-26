@@ -27,6 +27,8 @@ var _os = _interopRequireDefault(require("os"));
 
 var _path = _interopRequireDefault(require("path"));
 
+var _pug = _interopRequireDefault(require("pug"));
+
 var _svg2ttf = _interopRequireDefault(require("svg2ttf"));
 
 var _ttf2eot = _interopRequireDefault(require("ttf2eot"));
@@ -202,6 +204,12 @@ function _default(initialOptions) {
     throw new Error("You must pass webfont a `files` glob or `svgs`");
   }
 
+  const ALLOWED_COMPILERS = ["nunjucks", "pug"];
+
+  if (initialOptions.templateCompiler && ALLOWED_COMPILERS.indexOf(initialOptions.templateCompiler) < 0) {
+    throw new Error(`Template compiler '${initialOptions.templateCompiler}' not supported yet. Supported options are: ${ALLOWED_COMPILERS}`);
+  }
+
   let options = Object.assign({}, {
     ascent: undefined,
     // eslint-disable-line no-undefined
@@ -235,6 +243,7 @@ function _default(initialOptions) {
     svgs: [],
     template: null,
     templateClassName: null,
+    templateCompiler: "nunjucks",
     templateFontName: null,
     templateFontPath: "./",
     verbose: false
@@ -305,6 +314,17 @@ function _default(initialOptions) {
           path: _path.default.join(buildInTemplateDirectory, "template.scss.njk")
         }
       };
+      const compilers = {
+        "nunjucks": {
+          ext: "njk",
+          render: (templateFilePath, parameters) => _nunjucks.default.render(templateFilePath, parameters)
+        },
+        "pug": {
+          ext: "pug",
+          render: (templateFilePath, parameters) => _pug.default.compileFile(templateFilePath)(parameters)
+        }
+      };
+      const compiler = compilers[options.templateCompiler];
       let templateFilePath = null;
 
       if (Object.keys(buildInTemplates).includes(options.template)) {
@@ -312,7 +332,7 @@ function _default(initialOptions) {
 
         _nunjucks.default.configure(_path.default.join(__dirname, "../"));
 
-        templateFilePath = `${buildInTemplateDirectory}/template.${options.template}.njk`;
+        templateFilePath = `${buildInTemplateDirectory}/template.${options.template}.${compiler.ext}`;
       } else {
         const resolvedTemplateFilePath = _path.default.resolve(options.template);
 
@@ -321,7 +341,7 @@ function _default(initialOptions) {
         templateFilePath = _path.default.resolve(resolvedTemplateFilePath);
       }
 
-      const nunjucksOptions = (0, _lodash.default)({}, {
+      const parameters = (0, _lodash.default)({}, {
         glyphs: glyphsData.map(glyphData => {
           if (typeof options.glyphTransformFn === "function") {
             glyphData.metadata = options.glyphTransformFn(glyphData.metadata);
@@ -334,7 +354,7 @@ function _default(initialOptions) {
         fontName: options.templateFontName ? options.templateFontName : options.fontName,
         fontPath: options.templateFontPath.replace(/\/?$/, "/")
       });
-      result.template = _nunjucks.default.render(templateFilePath, nunjucksOptions);
+      result.template = compiler.render(templateFilePath, parameters);
       return result;
     }).then(result => {
       if (options.formats.indexOf("svg") === -1) {

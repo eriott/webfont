@@ -9,6 +9,7 @@ import merge from "lodash.merge";
 import nunjucks from "nunjucks";
 import os from "os";
 import path from "path";
+import pug from "pug";
 import svg2ttf from "svg2ttf";
 import ttf2eot from "ttf2eot";
 import ttf2woff from "ttf2woff";
@@ -212,6 +213,12 @@ export default function(initialOptions) {
     throw new Error("You must pass webfont a `files` glob or `svgs`");
   }
 
+  const ALLOWED_COMPILERS = ["nunjucks", "pug"];
+
+  if (initialOptions.templateCompiler && ALLOWED_COMPILERS.indexOf(initialOptions.templateCompiler) < 0) {
+    throw new Error(`Template compiler '${initialOptions.templateCompiler}' not supported yet. Supported options are: ${ALLOWED_COMPILERS}`);
+  }
+
   let options = Object.assign(
     {},
     {
@@ -246,6 +253,7 @@ export default function(initialOptions) {
       svgs: [],
       template: null,
       templateClassName: null,
+      templateCompiler: "nunjucks",
       templateFontName: null,
       templateFontPath: "./",
       verbose: false
@@ -343,6 +351,19 @@ export default function(initialOptions) {
               path: path.join(buildInTemplateDirectory, "template.scss.njk")
             }
           };
+          const compilers = {
+            "nunjucks": {
+              ext: "njk",
+              render: (templateFilePath, parameters) =>
+                nunjucks.render(templateFilePath, parameters)
+            },
+            "pug": {
+              ext: "pug",
+              render: (templateFilePath, parameters) =>
+                pug.compileFile(templateFilePath)(parameters)
+            }
+          };
+          const compiler = compilers[options.templateCompiler];
 
           let templateFilePath = null;
 
@@ -353,7 +374,7 @@ export default function(initialOptions) {
 
             templateFilePath = `${buildInTemplateDirectory}/template.${
               options.template
-              }.njk`;
+              }.${compiler.ext}`;
           } else {
             const resolvedTemplateFilePath = path.resolve(options.template);
 
@@ -362,7 +383,7 @@ export default function(initialOptions) {
             templateFilePath = path.resolve(resolvedTemplateFilePath);
           }
 
-          const nunjucksOptions = merge(
+          const parameters = merge(
             {},
             {
               glyphs: glyphsData.map(glyphData => {
@@ -387,7 +408,7 @@ export default function(initialOptions) {
             }
           );
 
-          result.template = nunjucks.render(templateFilePath, nunjucksOptions);
+          result.template = compiler.render(templateFilePath, parameters);
 
           return result;
         })
