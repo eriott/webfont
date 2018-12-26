@@ -1,0 +1,116 @@
+.
+  @font-face {
+  font-family: #{ fontName };
+
+if formats.eot
+  .
+    src: url("#{ fontPath }#{ fontName }.eot");
+
+- var eotIndex = formats.indexOf('eot');
+- var woff2Index = formats.indexOf('woff2');
+- var woffIndex = formats.indexOf('woff');
+- var ttfIndex = formats.indexOf('ttf');
+- var svgIndex = formats.indexOf('svg');
+  .
+    src:
+if eotIndex != -1
+  .
+    url("#{ fontPath }#{ fontName }.eot?#iefix") format("embedded-opentype")
+  - var nothing = formats.splice(eotIndex, 1)
+if formats.length != 0
+  .
+    ,
+else
+  .
+    ;
+if woff2Index != -1
+  .
+    url("#{ fontPath }#{ fontName }.woff2") format("woff2")
+  - var nothing = formats.splice(woff2Index, 1)
+if formats.length != 0
+  .
+    ,
+else
+  .
+    ;
+if woffIndex != -1
+  .
+    url("#{ fontPath }#{ fontName }.woff") format("woff")
+  - var nothing = formats.splice(woffIndex, 1)
+  if formats.length != 0
+    .
+      ,
+  else
+    .
+      ;
+if ttfIndex != -1
+  .
+    url("#{ fontPath }#{ fontName }.ttf") format("ttf")
+  - var nothing = formats.splice(ttfIndex, 1)
+  if formats.length != 0
+    .
+      ,
+  else
+    .
+      ;
+if ttfIndex != -1
+  .
+    url("#{ fontPath }#{ fontName }.ttf") format("truetype")
+  - var nothing = formats.splice(ttfIndex, 1)
+  if formats.length != 0
+    .
+      ,
+  else
+    .
+      ;
+if svgIndex != -1
+  .
+    url("#{ fontPath }#{ fontName }.svg##{ fontName }") format("svg");
+.
+
+  font-style: normal;
+  font-weight: 400;
+  }
+
+  .#{ className } {
+    display: inline-block;
+    transform: translate(0, 0);
+    text-rendering: auto;
+    font: normal normal 400 14px/1 #{ fontName };
+    font-size: inherit;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .#{ className }-lg {
+    vertical-align: -15%;
+    line-height: 0.75em;
+    font-size: 1.33333333em;
+  }
+
+    .#{ className }-2x {
+    font-size: 2em;
+  }
+
+    .#{ className }-3x {
+    font-size: 3em;
+  }
+
+    .#{ className }-4x {
+    font-size: 4em;
+  }
+
+    .#{ className }-5x {
+    font-size: 5em;
+  }
+
+    .#{ className }-fw {
+    width: 1.28571429em;
+    text-align: center;
+  }
+
+each glyph in glyphs
+  .
+    .#{ className }-#{ glyph.name }::before {
+    content: "#{ "\\" + glyph.unicode[0].charCodeAt(0).toString(16) }";
+    }
